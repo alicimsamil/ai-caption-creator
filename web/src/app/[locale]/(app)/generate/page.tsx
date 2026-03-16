@@ -217,8 +217,10 @@ export default function GeneratePage() {
         </div>
         {store.results && (
           <ExportButton
-            captions={store.results.captions}
-            hashtags={store.results.hashtags}
+            data={{
+              captions: store.results.captions,
+              hashtags: store.results.hashtags,
+            }}
           />
         )}
       </div>
