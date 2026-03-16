@@ -1,128 +1,529 @@
-import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
-import { getServerUrl, setServerUrl } from "../../lib/storage";
-import { checkHealth, getModels } from "../../lib/api-client";
-
-const PURPLE = "#8B5CF6";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
+import i18n from "i18next";
+import * as storage from "@/lib/storage";
+import * as apiClient from "@/lib/api-client";
 
 export default function SettingsScreen() {
-  const [url, setUrl] = useState("http://localhost:3000");
-  const [connected, setConnected] = useState<boolean | null>(null);
+  const { t } = useTranslation();
+  const [serverUrl, setServerUrl] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
   const [models, setModels] = useState<string[]>([]);
-  const [checking, setChecking] = useState(false);
+  const [language, setLanguage] = useState("en");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [connectionStatus, setConnectionStatus] = useState<
+    "unknown" | "connected" | "disconnected"
+  >("unknown");
+  const [testing, setTesting] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
-    loadSettings();
+    (async () => {
+      const url = await storage.getServerUrl();
+      const lang = await storage.getLanguage();
+      const thm = await storage.getTheme();
+      const mdl = await storage.getModel();
+      setServerUrl(url);
+      setLanguage(lang);
+      setTheme(thm);
+      setSelectedModel(mdl);
+    })();
   }, []);
 
-  const loadSettings = async () => {
-    const saved = await getServerUrl();
-    if (saved) setUrl(saved);
-  };
+  const handleSaveUrl = useCallback(async () => {
+    await storage.setServerUrl(serverUrl);
+    Alert.alert("", t("settings.saved"));
+  }, [serverUrl, t]);
 
-  const handleSave = async () => {
-    await setServerUrl(url);
-    Alert.alert("Kaydedildi", "Sunucu URL guncellendi");
-  };
-
-  const handleTestConnection = async () => {
-    setChecking(true);
+  const handleTestConnection = useCallback(async () => {
+    setTesting(true);
     try {
-      await setServerUrl(url);
-      const health = await checkHealth();
-      setConnected(true);
-      try {
-        const modelsData = await getModels();
-        setModels(modelsData.models || []);
-      } catch {}
-      Alert.alert("Bagli!", "Sunucuya basariyla baglanildi");
+      await apiClient.checkHealth();
+      setConnectionStatus("connected");
     } catch {
-      setConnected(false);
-      Alert.alert("Hata", "Sunucuya baglanilamadi");
+      setConnectionStatus("disconnected");
     } finally {
-      setChecking(false);
+      setTesting(false);
     }
-  };
+  }, []);
+
+  const handleLoadModels = useCallback(async () => {
+    setLoadingModels(true);
+    try {
+      const result = await apiClient.getModels();
+      setModels(result.models);
+    } catch {
+      Alert.alert(t("common.error"), "Could not load models");
+    } finally {
+      setLoadingModels(false);
+    }
+  }, [t]);
+
+  const handleSelectModel = useCallback(
+    async (model: string) => {
+      setSelectedModel(model);
+      await storage.setModel(model);
+    },
+    []
+  );
+
+  const handleChangeLanguage = useCallback(
+    async (lang: string) => {
+      setLanguage(lang);
+      await storage.setLanguage(lang);
+      i18n.changeLanguage(lang);
+    },
+    []
+  );
+
+  const handleChangeTheme = useCallback(
+    async (thm: "dark" | "light") => {
+      setTheme(thm);
+      await storage.setTheme(thm);
+    },
+    []
+  );
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <Text style={s.title}>Ayarlar</Text>
-
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Sunucu Baglantisi</Text>
-        <Text style={s.label}>Sunucu URL</Text>
-        <TextInput
-          style={s.input}
-          value={url}
-          onChangeText={setUrl}
-          placeholder="http://localhost:3000"
-          placeholderTextColor="#6B7280"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-
-        <View style={s.statusRow}>
-          <Text style={s.label}>Durum:</Text>
-          {connected === true && <Text style={s.connected}>Bagli</Text>}
-          {connected === false && <Text style={s.disconnected}>Bagli Degil</Text>}
-          {connected === null && <Text style={s.unknown}>Bilinmiyor</Text>}
-        </View>
-
-        <View style={s.buttonRow}>
-          <TouchableOpacity style={s.btn} onPress={handleSave}>
-            <Text style={s.btnText}>Kaydet</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.btn, s.btnOutline]}
-            onPress={handleTestConnection}
-            disabled={checking}
-          >
-            <Text style={s.btnOutlineText}>
-              {checking ? "Test ediliyor..." : "Baglantiyi Test Et"}
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerIcon}>⚙️</Text>
+          <View>
+            <Text style={styles.title}>{t("settings.title")}</Text>
+            <Text style={styles.subtitle}>
+              {t("settings.subtitle")}
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {models.length > 0 && (
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Mevcut Modeller</Text>
-          {models.map((m, i) => (
-            <View key={i} style={s.modelItem}>
-              <Text style={s.modelText}>{m}</Text>
+        {/* Server URL */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {t("settings.serverUrl")}
+          </Text>
+          <TextInput
+            style={styles.textInput}
+            value={serverUrl}
+            onChangeText={setServerUrl}
+            placeholder={t("settings.serverUrlPlaceholder")}
+            placeholderTextColor="#52525B"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          <View style={styles.urlActions}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleSaveUrl}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.actionBtnText}>
+                {t("common.save")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.testBtn]}
+              onPress={handleTestConnection}
+              disabled={testing}
+              activeOpacity={0.7}
+            >
+              {testing ? (
+                <ActivityIndicator color="#A855F7" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>
+                  {t("settings.testConnection")}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {connectionStatus !== "unknown" && (
+            <View
+              style={[
+                styles.statusBadge,
+                connectionStatus === "connected"
+                  ? styles.statusConnected
+                  : styles.statusDisconnected,
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor:
+                      connectionStatus === "connected"
+                        ? "#10B981"
+                        : "#EF4444",
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  {
+                    color:
+                      connectionStatus === "connected"
+                        ? "#10B981"
+                        : "#EF4444",
+                  },
+                ]}
+              >
+                {connectionStatus === "connected"
+                  ? t("settings.connected")
+                  : t("settings.disconnected")}
+              </Text>
             </View>
-          ))}
+          )}
         </View>
-      )}
 
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Hakkinda</Text>
-        <Text style={s.aboutText}>CaptionAI v1.0.0</Text>
-        <Text style={s.aboutText}>Self-hosted AI Caption Generator</Text>
-        <Text style={s.aboutText}>Powered by Ollama + BLIP</Text>
-      </View>
-    </ScrollView>
+        {/* AI Model */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {t("settings.aiModel")}
+            </Text>
+            <TouchableOpacity
+              onPress={handleLoadModels}
+              disabled={loadingModels}
+              activeOpacity={0.7}
+            >
+              {loadingModels ? (
+                <ActivityIndicator color="#A855F7" size="small" />
+              ) : (
+                <Text style={styles.refreshText}>Refresh</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {models.length > 0 ? (
+            <View style={styles.modelGrid}>
+              {models.map((model) => {
+                const isSelected = model === selectedModel;
+                return (
+                  <TouchableOpacity
+                    key={model}
+                    style={[
+                      styles.modelChip,
+                      isSelected && styles.modelChipSelected,
+                    ]}
+                    onPress={() => handleSelectModel(model)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.modelChipText,
+                        isSelected && styles.modelChipTextSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {model}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.hintText}>
+              Tap Refresh to load available models
+            </Text>
+          )}
+        </View>
+
+        {/* Language */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {t("settings.defaultLanguage")}
+          </Text>
+          <View style={styles.langRow}>
+            {[
+              { id: "en", label: "English" },
+              { id: "tr", label: "Turkce" },
+            ].map((lang) => {
+              const isSelected = lang.id === language;
+              return (
+                <TouchableOpacity
+                  key={lang.id}
+                  style={[
+                    styles.langChip,
+                    isSelected && styles.langChipSelected,
+                  ]}
+                  onPress={() => handleChangeLanguage(lang.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.langChipText,
+                      isSelected && styles.langChipTextSelected,
+                    ]}
+                  >
+                    {lang.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Theme */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {t("settings.theme")}
+          </Text>
+          <View style={styles.langRow}>
+            {[
+              {
+                id: "dark" as const,
+                label: t("settings.themeDark"),
+                icon: "🌙",
+              },
+              {
+                id: "light" as const,
+                label: t("settings.themeLight"),
+                icon: "☀️",
+              },
+            ].map((thm) => {
+              const isSelected = thm.id === theme;
+              return (
+                <TouchableOpacity
+                  key={thm.id}
+                  style={[
+                    styles.langChip,
+                    isSelected && styles.langChipSelected,
+                  ]}
+                  onPress={() => handleChangeTheme(thm.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.themeIcon}>{thm.icon}</Text>
+                  <Text
+                    style={[
+                      styles.langChipText,
+                      isSelected && styles.langChipTextSelected,
+                    ]}
+                  >
+                    {thm.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* App Info */}
+        <View style={styles.infoSection}>
+          <Text style={styles.infoTitle}>CaptionAI Mobile</Text>
+          <Text style={styles.infoVersion}>Version 1.0.0</Text>
+          <Text style={styles.infoDesc}>
+            AI-Powered Social Media Caption Generator
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0a0a0f" },
-  content: { padding: 16, paddingBottom: 100 },
-  title: { fontSize: 28, fontWeight: "bold", color: "#fff", marginBottom: 20 },
-  card: { backgroundColor: "#1f1f2e", borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#2d2d3f" },
-  cardTitle: { fontSize: 16, fontWeight: "bold", color: "#fff", marginBottom: 12 },
-  label: { fontSize: 13, color: "#9CA3AF", marginBottom: 6 },
-  input: { backgroundColor: "#141420", borderRadius: 8, padding: 12, color: "#fff", fontSize: 14, borderWidth: 1, borderColor: "#2d2d3f", fontFamily: "monospace" },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
-  connected: { color: "#10B981", fontWeight: "600" },
-  disconnected: { color: "#EF4444", fontWeight: "600" },
-  unknown: { color: "#6B7280" },
-  buttonRow: { flexDirection: "row", gap: 12, marginTop: 16 },
-  btn: { flex: 1, backgroundColor: PURPLE, borderRadius: 8, paddingVertical: 12, alignItems: "center" },
-  btnText: { color: "#fff", fontWeight: "600" },
-  btnOutline: { backgroundColor: "transparent", borderWidth: 1, borderColor: PURPLE },
-  btnOutlineText: { color: PURPLE, fontWeight: "600" },
-  modelItem: { backgroundColor: "#141420", borderRadius: 6, padding: 10, marginBottom: 6 },
-  modelText: { color: "#D1D5DB", fontSize: 13, fontFamily: "monospace" },
-  aboutText: { color: "#6B7280", fontSize: 13, marginBottom: 4 },
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#0F0A1A",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 28,
+  },
+  headerIcon: {
+    fontSize: 32,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  subtitle: {
+    fontSize: 13,
+    color: "#71717A",
+    marginTop: 2,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#A1A1AA",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  textInput: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 12,
+    padding: 14,
+    color: "#E4E4E7",
+    fontSize: 15,
+  },
+  urlActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  actionBtn: {
+    flex: 1,
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.3)",
+  },
+  testBtn: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  actionBtnText: {
+    color: "#A855F7",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+  },
+  statusConnected: {
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
+  statusDisconnected: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  refreshText: {
+    color: "#A855F7",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modelGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  modelChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  modelChipSelected: {
+    backgroundColor: "rgba(168, 85, 247, 0.2)",
+    borderColor: "#A855F7",
+  },
+  modelChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#A1A1AA",
+  },
+  modelChipTextSelected: {
+    color: "#A855F7",
+  },
+  hintText: {
+    color: "#52525B",
+    fontSize: 13,
+    fontStyle: "italic",
+  },
+  langRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  langChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  langChipSelected: {
+    backgroundColor: "rgba(168, 85, 247, 0.2)",
+    borderColor: "#A855F7",
+  },
+  langChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#A1A1AA",
+  },
+  langChipTextSelected: {
+    color: "#A855F7",
+  },
+  themeIcon: {
+    fontSize: 18,
+  },
+  infoSection: {
+    alignItems: "center",
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#A855F7",
+  },
+  infoVersion: {
+    fontSize: 12,
+    color: "#71717A",
+    marginTop: 4,
+  },
+  infoDesc: {
+    fontSize: 12,
+    color: "#52525B",
+    marginTop: 4,
+  },
 });
