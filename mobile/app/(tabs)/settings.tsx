@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,119 +11,86 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import i18n from "i18next";
+import i18next from "i18next";
 import * as storage from "@/lib/storage";
-import * as apiClient from "@/lib/api-client";
+import { checkHealth, getModels } from "@/lib/api-client";
+import type { ModelInfo } from "@/types/caption";
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
-  const [serverUrl, setServerUrl] = useState("");
-  const [selectedModel, setSelectedModel] = useState("");
-  const [models, setModels] = useState<string[]>([]);
+  const [serverUrl, setServerUrl] = useState("http://localhost:3000");
+  const [selectedModel, setSelectedModel] = useState("llama3");
   const [language, setLanguage] = useState("en");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [connectionStatus, setConnectionStatus] = useState<
-    "unknown" | "connected" | "disconnected"
-  >("unknown");
-  const [testing, setTesting] = useState(false);
-  const [loadingModels, setLoadingModels] = useState(false);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const url = await storage.getServerUrl();
-      const lang = await storage.getLanguage();
-      const thm = await storage.getTheme();
-      const mdl = await storage.getModel();
-      setServerUrl(url);
-      setLanguage(lang);
-      setTheme(thm);
-      setSelectedModel(mdl);
+      setServerUrl(await storage.getServerUrl());
+      setSelectedModel(await storage.getModel());
+      setLanguage(await storage.getLanguage());
+      setTheme(await storage.getTheme());
     })();
   }, []);
 
-  const handleSaveUrl = useCallback(async () => {
+  const handleSaveUrl = async () => {
     await storage.setServerUrl(serverUrl);
-    Alert.alert("", t("settings.saved"));
-  }, [serverUrl, t]);
+    Alert.alert(t("settings.saved"));
+  };
 
-  const handleTestConnection = useCallback(async () => {
-    setTesting(true);
+  const handleTestConnection = async () => {
+    setIsTesting(true);
     try {
-      await apiClient.checkHealth();
-      setConnectionStatus("connected");
+      await checkHealth();
+      setIsConnected(true);
+      const modelsList = await getModels();
+      setModels(modelsList);
     } catch {
-      setConnectionStatus("disconnected");
+      setIsConnected(false);
     } finally {
-      setTesting(false);
+      setIsTesting(false);
     }
-  }, []);
+  };
 
-  const handleLoadModels = useCallback(async () => {
-    setLoadingModels(true);
-    try {
-      const result = await apiClient.getModels();
-      setModels(result.models);
-    } catch {
-      Alert.alert(t("common.error"), "Could not load models");
-    } finally {
-      setLoadingModels(false);
-    }
-  }, [t]);
+  const handleModelSelect = async (model: string) => {
+    setSelectedModel(model);
+    await storage.setModel(model);
+  };
 
-  const handleSelectModel = useCallback(
-    async (model: string) => {
-      setSelectedModel(model);
-      await storage.setModel(model);
-    },
-    []
-  );
+  const handleLanguageChange = async (lang: string) => {
+    setLanguage(lang);
+    await storage.setLanguage(lang);
+    i18next.changeLanguage(lang);
+  };
 
-  const handleChangeLanguage = useCallback(
-    async (lang: string) => {
-      setLanguage(lang);
-      await storage.setLanguage(lang);
-      i18n.changeLanguage(lang);
-    },
-    []
-  );
-
-  const handleChangeTheme = useCallback(
-    async (thm: "dark" | "light") => {
-      setTheme(thm);
-      await storage.setTheme(thm);
-    },
-    []
-  );
+  const handleThemeChange = async (newTheme: "dark" | "light") => {
+    setTheme(newTheme);
+    await storage.setTheme(newTheme);
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
-        style={styles.scrollView}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerIcon}>⚙️</Text>
-          <View>
-            <Text style={styles.title}>{t("settings.title")}</Text>
-            <Text style={styles.subtitle}>
-              {t("settings.subtitle")}
-            </Text>
-          </View>
+          <Text style={styles.title}>{t("settings.title")}</Text>
+          <Text style={styles.subtitle}>{t("settings.subtitle")}</Text>
         </View>
 
         {/* Server URL */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {t("settings.serverUrl")}
-          </Text>
+          <Text style={styles.sectionTitle}>{t("settings.serverUrl")}</Text>
           <TextInput
-            style={styles.textInput}
+            style={styles.input}
             value={serverUrl}
             onChangeText={setServerUrl}
             placeholder={t("settings.serverUrlPlaceholder")}
-            placeholderTextColor="#52525B"
+            placeholderTextColor="#475569"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -134,18 +101,16 @@ export default function SettingsScreen() {
               onPress={handleSaveUrl}
               activeOpacity={0.7}
             >
-              <Text style={styles.actionBtnText}>
-                {t("common.save")}
-              </Text>
+              <Text style={styles.actionBtnText}>{t("common.save")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionBtn, styles.testBtn]}
               onPress={handleTestConnection}
-              disabled={testing}
+              disabled={isTesting}
               activeOpacity={0.7}
             >
-              {testing ? (
-                <ActivityIndicator color="#A855F7" size="small" />
+              {isTesting ? (
+                <ActivityIndicator size="small" color="#a78bfa" />
               ) : (
                 <Text style={styles.actionBtnText}>
                   {t("settings.testConnection")}
@@ -153,38 +118,22 @@ export default function SettingsScreen() {
               )}
             </TouchableOpacity>
           </View>
-          {connectionStatus !== "unknown" && (
+          {isConnected !== null && (
             <View
               style={[
                 styles.statusBadge,
-                connectionStatus === "connected"
-                  ? styles.statusConnected
-                  : styles.statusDisconnected,
+                isConnected ? styles.statusConnected : styles.statusDisconnected,
               ]}
             >
-              <View
-                style={[
-                  styles.statusDot,
-                  {
-                    backgroundColor:
-                      connectionStatus === "connected"
-                        ? "#10B981"
-                        : "#EF4444",
-                  },
-                ]}
-              />
               <Text
                 style={[
                   styles.statusText,
-                  {
-                    color:
-                      connectionStatus === "connected"
-                        ? "#10B981"
-                        : "#EF4444",
-                  },
+                  isConnected
+                    ? styles.statusTextConnected
+                    : styles.statusTextDisconnected,
                 ]}
               >
-                {connectionStatus === "connected"
+                {isConnected
                   ? t("settings.connected")
                   : t("settings.disconnected")}
               </Text>
@@ -194,52 +143,33 @@ export default function SettingsScreen() {
 
         {/* AI Model */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {t("settings.aiModel")}
-            </Text>
-            <TouchableOpacity
-              onPress={handleLoadModels}
-              disabled={loadingModels}
-              activeOpacity={0.7}
-            >
-              {loadingModels ? (
-                <ActivityIndicator color="#A855F7" size="small" />
-              ) : (
-                <Text style={styles.refreshText}>Refresh</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sectionTitle}>{t("settings.aiModel")}</Text>
           {models.length > 0 ? (
-            <View style={styles.modelGrid}>
-              {models.map((model) => {
-                const isSelected = model === selectedModel;
-                return (
-                  <TouchableOpacity
-                    key={model}
+            <View style={styles.chipRow}>
+              {models.map((model) => (
+                <TouchableOpacity
+                  key={model.name}
+                  style={[
+                    styles.chip,
+                    selectedModel === model.name && styles.chipSelected,
+                  ]}
+                  onPress={() => handleModelSelect(model.name)}
+                >
+                  <Text
                     style={[
-                      styles.modelChip,
-                      isSelected && styles.modelChipSelected,
+                      styles.chipText,
+                      selectedModel === model.name && styles.chipTextSelected,
                     ]}
-                    onPress={() => handleSelectModel(model)}
-                    activeOpacity={0.7}
                   >
-                    <Text
-                      style={[
-                        styles.modelChipText,
-                        isSelected && styles.modelChipTextSelected,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {model}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                    {model.name}
+                  </Text>
+                  <Text style={styles.chipSub}>{model.sizeHuman}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           ) : (
             <Text style={styles.hintText}>
-              Tap Refresh to load available models
+              {selectedModel} (test connection to load models)
             </Text>
           )}
         </View>
@@ -249,87 +179,59 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>
             {t("settings.defaultLanguage")}
           </Text>
-          <View style={styles.langRow}>
+          <View style={styles.chipRow}>
             {[
               { id: "en", label: "English" },
               { id: "tr", label: "Turkce" },
-            ].map((lang) => {
-              const isSelected = lang.id === language;
-              return (
-                <TouchableOpacity
-                  key={lang.id}
+            ].map((lang) => (
+              <TouchableOpacity
+                key={lang.id}
+                style={[
+                  styles.chip,
+                  language === lang.id && styles.chipSelected,
+                ]}
+                onPress={() => handleLanguageChange(lang.id)}
+              >
+                <Text
                   style={[
-                    styles.langChip,
-                    isSelected && styles.langChipSelected,
+                    styles.chipText,
+                    language === lang.id && styles.chipTextSelected,
                   ]}
-                  onPress={() => handleChangeLanguage(lang.id)}
-                  activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.langChipText,
-                      isSelected && styles.langChipTextSelected,
-                    ]}
-                  >
-                    {lang.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  {lang.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
         {/* Theme */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {t("settings.theme")}
-          </Text>
-          <View style={styles.langRow}>
+          <Text style={styles.sectionTitle}>{t("settings.theme")}</Text>
+          <View style={styles.chipRow}>
             {[
-              {
-                id: "dark" as const,
-                label: t("settings.themeDark"),
-                icon: "🌙",
-              },
-              {
-                id: "light" as const,
-                label: t("settings.themeLight"),
-                icon: "☀️",
-              },
-            ].map((thm) => {
-              const isSelected = thm.id === theme;
-              return (
-                <TouchableOpacity
-                  key={thm.id}
+              { id: "dark" as const, label: t("settings.dark") },
+              { id: "light" as const, label: t("settings.light") },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.id}
+                style={[
+                  styles.chip,
+                  theme === opt.id && styles.chipSelected,
+                ]}
+                onPress={() => handleThemeChange(opt.id)}
+              >
+                <Text
                   style={[
-                    styles.langChip,
-                    isSelected && styles.langChipSelected,
+                    styles.chipText,
+                    theme === opt.id && styles.chipTextSelected,
                   ]}
-                  onPress={() => handleChangeTheme(thm.id)}
-                  activeOpacity={0.7}
                 >
-                  <Text style={styles.themeIcon}>{thm.icon}</Text>
-                  <Text
-                    style={[
-                      styles.langChipText,
-                      isSelected && styles.langChipTextSelected,
-                    ]}
-                  >
-                    {thm.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        </View>
-
-        {/* App Info */}
-        <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>CaptionAI Mobile</Text>
-          <Text style={styles.infoVersion}>Version 1.0.0</Text>
-          <Text style={styles.infoDesc}>
-            AI-Powered Social Media Caption Generator
-          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -337,11 +239,11 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  safe: {
     flex: 1,
     backgroundColor: "#0F0A1A",
   },
-  scrollView: {
+  scroll: {
     flex: 1,
   },
   content: {
@@ -349,49 +251,37 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 28,
-  },
-  headerIcon: {
-    fontSize: 32,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 24,
+    color: "#f1f5f9",
+    fontSize: 28,
     fontWeight: "800",
-    color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: "#71717A",
-    marginTop: 2,
+    color: "#64748b",
+    fontSize: 14,
+    marginTop: 4,
   },
   section: {
     marginBottom: 28,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
   sectionTitle: {
+    color: "#c4b5fd",
     fontSize: 14,
-    fontWeight: "600",
-    color: "#A1A1AA",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontWeight: "700",
     marginBottom: 10,
+    letterSpacing: 0.5,
   },
-  textInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+  input: {
+    backgroundColor: "rgba(30, 27, 46, 0.8)",
     borderRadius: 12,
     padding: 14,
-    color: "#E4E4E7",
+    color: "#e2e8f0",
     fontSize: 15,
+    borderWidth: 1,
+    borderColor: "rgba(139, 92, 246, 0.2)",
   },
   urlActions: {
     flexDirection: "row",
@@ -400,130 +290,77 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    backgroundColor: "rgba(168, 85, 247, 0.15)",
     paddingVertical: 12,
     borderRadius: 10,
-    alignItems: "center",
+    backgroundColor: "rgba(139, 92, 246, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(168, 85, 247, 0.3)",
+    borderColor: "rgba(139, 92, 246, 0.3)",
+    alignItems: "center",
   },
   testBtn: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(139, 92, 246, 0.08)",
   },
   actionBtnText: {
-    color: "#A855F7",
-    fontWeight: "600",
-    fontSize: 14,
+    color: "#a78bfa",
+    fontSize: 13,
+    fontWeight: "700",
   },
   statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
     marginTop: 10,
-    padding: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignSelf: "flex-start",
   },
   statusConnected: {
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
   },
   statusDisconnected: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
   },
   statusText: {
     fontSize: 13,
     fontWeight: "600",
   },
-  refreshText: {
-    color: "#A855F7",
-    fontSize: 13,
-    fontWeight: "600",
+  statusTextConnected: {
+    color: "#22c55e",
   },
-  modelGrid: {
+  statusTextDisconnected: {
+    color: "#ef4444",
+  },
+  chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  modelChip: {
-    paddingHorizontal: 14,
+  chip: {
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  modelChipSelected: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    borderColor: "#A855F7",
-  },
-  modelChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#A1A1AA",
-  },
-  modelChipTextSelected: {
-    color: "#A855F7",
-  },
-  hintText: {
-    color: "#52525B",
-    fontSize: 13,
-    fontStyle: "italic",
-  },
-  langRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  langChip: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(30, 27, 46, 0.8)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(139, 92, 246, 0.2)",
   },
-  langChipSelected: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    borderColor: "#A855F7",
+  chipSelected: {
+    backgroundColor: "rgba(139, 92, 246, 0.2)",
+    borderColor: "#8b5cf6",
   },
-  langChipText: {
+  chipText: {
+    color: "#94a3b8",
     fontSize: 14,
     fontWeight: "600",
-    color: "#A1A1AA",
   },
-  langChipTextSelected: {
-    color: "#A855F7",
+  chipTextSelected: {
+    color: "#c4b5fd",
   },
-  themeIcon: {
-    fontSize: 18,
+  chipSub: {
+    color: "#475569",
+    fontSize: 11,
+    marginTop: 2,
   },
-  infoSection: {
-    alignItems: "center",
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.06)",
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#A855F7",
-  },
-  infoVersion: {
-    fontSize: 12,
-    color: "#71717A",
-    marginTop: 4,
-  },
-  infoDesc: {
-    fontSize: 12,
-    color: "#52525B",
-    marginTop: 4,
+  hintText: {
+    color: "#475569",
+    fontSize: 13,
+    fontStyle: "italic",
   },
 });

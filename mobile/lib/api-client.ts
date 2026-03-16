@@ -2,9 +2,11 @@ import { getServerUrl } from "./storage";
 import type {
   GenerationRequest,
   GenerationResult,
-  GeneratedHashtag,
-  RefineRequest,
   Template,
+  HistoryItem,
+  FavoriteItem,
+  TrendingHashtag,
+  ModelInfo,
 } from "@/types/caption";
 
 async function getBaseUrl(): Promise<string> {
@@ -16,7 +18,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}/api${path}`;
+  const url = `${baseUrl}${path}`;
 
   const response = await fetch(url, {
     ...options,
@@ -27,10 +29,8 @@ async function request<T>(
   });
 
   if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
-    throw new Error(
-      `API Error ${response.status}: ${errorBody || response.statusText}`
-    );
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Request failed: ${response.status}`);
   }
 
   return response.json();
@@ -39,78 +39,111 @@ async function request<T>(
 export async function generateCaption(
   req: GenerationRequest
 ): Promise<GenerationResult> {
-  return request<GenerationResult>("/generate/caption", {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
+  const data = await request<{ generation: GenerationResult }>(
+    "/api/generate/caption",
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    }
+  );
+  return data.generation;
 }
 
 export async function generateHashtags(
   topic: string,
   platform: string,
-  language: string,
   count?: number
-): Promise<{ hashtags: GeneratedHashtag[] }> {
-  return request<{ hashtags: GeneratedHashtag[] }>("/generate/hashtags", {
+): Promise<{ hashtags: Array<{ tag: string; category: string; relevancy: number }> }> {
+  return request("/api/generate/hashtags", {
     method: "POST",
-    body: JSON.stringify({ topic, platform, language, count }),
+    body: JSON.stringify({ topic, platform, count }),
   });
 }
 
 export async function analyzeImage(
-  imageBase64: string,
+  imageUri: string,
   mimeType: string
-): Promise<{ description: string }> {
-  return request<{ description: string }>("/generate/image-analyze", {
+): Promise<{ description: string; confidence: number; tags: string[] }> {
+  const baseUrl = await getBaseUrl();
+  const formData = new FormData();
+
+  const filename = imageUri.split("/").pop() || "image.jpg";
+  formData.append("image", {
+    uri: imageUri,
+    name: filename,
+    type: mimeType,
+  } as unknown as Blob);
+
+  const response = await fetch(`${baseUrl}/api/generate/image-analyze`, {
     method: "POST",
-    body: JSON.stringify({ image: imageBase64, mimeType }),
+    body: formData,
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
   });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || "Image analysis failed");
+  }
+
+  return response.json();
 }
 
-export async function refineCaption(
-  req: RefineRequest
-): Promise<{ text: string }> {
-  return request<{ text: string }>("/generate/refine", {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
+export async function getTemplates(
+  platform?: string,
+  category?: string
+): Promise<Template[]> {
+  const params = new URLSearchParams();
+  if (platform) params.set("platform", platform);
+  if (category) params.set("category", category);
+  const query = params.toString();
+  const data = await request<{ templates: Template[] }>(
+    `/api/templates${query ? `?${query}` : ""}`
+  );
+  return data.templates;
 }
 
-export async function getTemplates(): Promise<Template[]> {
-  return request<Template[]>("/templates");
+export async function getHistory(
+  page = 1,
+  limit = 20,
+  platform?: string
+): Promise<{ generations: HistoryItem[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (platform) params.set("platform", platform);
+  return request(`/api/history?${params.toString()}`);
 }
 
-export async function getHistory(): Promise<GenerationResult[]> {
-  return request<GenerationResult[]>("/history");
-}
-
-export async function getFavorites(): Promise<GenerationResult[]> {
-  return request<GenerationResult[]>("/favorites");
+export async function getFavorites(): Promise<FavoriteItem[]> {
+  const data = await request<{ favorites: FavoriteItem[] }>("/api/favorites");
+  return data.favorites;
 }
 
 export async function toggleFavorite(
   captionId: string
 ): Promise<{ isFavorite: boolean }> {
-  return request<{ isFavorite: boolean }>("/favorites", {
+  return request("/api/favorites", {
     method: "POST",
     body: JSON.stringify({ captionId }),
   });
 }
 
-export async function getTrending(
-  platform?: string
-): Promise<{ hashtags: GeneratedHashtag[] }> {
-  const query = platform ? `?platform=${platform}` : "";
-  return request<{ hashtags: GeneratedHashtag[] }>(`/trending${query}`);
+export async function getTrending(): Promise<TrendingHashtag[]> {
+  const data = await request<{ hashtags: TrendingHashtag[] }>("/api/trending");
+  return data.hashtags;
 }
 
-export async function getModels(): Promise<{ models: string[] }> {
-  return request<{ models: string[] }>("/models");
+export async function getModels(): Promise<ModelInfo[]> {
+  const data = await request<{ models: ModelInfo[] }>("/api/models");
+  return data.models;
 }
 
 export async function checkHealth(): Promise<{
   status: string;
-  model?: string;
+  services: {
+    ollama: { status: string; models?: string[] };
+    aiService: { status: string };
+  };
 }> {
-  return request<{ status: string; model?: string }>("/health");
+  return request("/api/health");
 }

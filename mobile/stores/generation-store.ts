@@ -1,9 +1,15 @@
 import { create } from "zustand";
+import type { Platform, Tone, Language } from "@/types/platform";
 import type {
   GenerationRequest,
   GenerationResult,
+  GeneratedCaption,
+  GeneratedHashtag,
+  Template,
+  HistoryItem,
+  FavoriteItem,
 } from "@/types/caption";
-import type { Platform, Tone, Language } from "@/types/platform";
+import * as api from "@/lib/api-client";
 
 interface GenerationState {
   // Form state
@@ -16,14 +22,24 @@ interface GenerationState {
   includeCta: boolean;
   includeHashtags: boolean;
   persona: string;
+  imageDescription: string;
   templateId: string | null;
-  imageUri: string | null;
-  imageDescription: string | null;
 
-  // Generation state
+  // Results
+  result: GenerationResult | null;
+  captions: GeneratedCaption[];
+  hashtags: GeneratedHashtag[];
+
+  // Lists
+  templates: Template[];
+  history: HistoryItem[];
+  favorites: FavoriteItem[];
+
+  // UI state
   isGenerating: boolean;
-  isAnalyzingImage: boolean;
-  results: GenerationResult | null;
+  isLoadingTemplates: boolean;
+  isLoadingHistory: boolean;
+  isLoadingFavorites: boolean;
   error: string | null;
 
   // Actions
@@ -36,19 +52,20 @@ interface GenerationState {
   setIncludeCta: (include: boolean) => void;
   setIncludeHashtags: (include: boolean) => void;
   setPersona: (persona: string) => void;
+  setImageDescription: (desc: string) => void;
   setTemplateId: (id: string | null) => void;
-  setImageUri: (uri: string | null) => void;
-  setImageDescription: (desc: string | null) => void;
-  setIsGenerating: (generating: boolean) => void;
-  setIsAnalyzingImage: (analyzing: boolean) => void;
-  setResults: (results: GenerationResult | null) => void;
   setError: (error: string | null) => void;
-  reset: () => void;
 
-  getRequest: () => GenerationRequest;
+  generate: () => Promise<void>;
+  loadTemplates: () => Promise<void>;
+  loadHistory: () => Promise<void>;
+  loadFavorites: () => Promise<void>;
+  toggleFavorite: (captionId: string) => Promise<void>;
+  applyTemplate: (template: Template) => void;
+  reset: () => void;
 }
 
-const initialState = {
+const initialFormState = {
   topic: "",
   platform: "instagram" as Platform,
   tone: "casual" as Tone,
@@ -58,17 +75,25 @@ const initialState = {
   includeCta: true,
   includeHashtags: true,
   persona: "",
+  imageDescription: "",
   templateId: null as string | null,
-  imageUri: null as string | null,
-  imageDescription: null as string | null,
-  isGenerating: false,
-  isAnalyzingImage: false,
-  results: null as GenerationResult | null,
-  error: null as string | null,
 };
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
-  ...initialState,
+  ...initialFormState,
+
+  result: null,
+  captions: [],
+  hashtags: [],
+  templates: [],
+  history: [],
+  favorites: [],
+
+  isGenerating: false,
+  isLoadingTemplates: false,
+  isLoadingHistory: false,
+  isLoadingFavorites: false,
+  error: null,
 
   setTopic: (topic) => set({ topic }),
   setPlatform: (platform) => set({ platform }),
@@ -79,29 +104,116 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   setIncludeCta: (includeCta) => set({ includeCta }),
   setIncludeHashtags: (includeHashtags) => set({ includeHashtags }),
   setPersona: (persona) => set({ persona }),
-  setTemplateId: (templateId) => set({ templateId }),
-  setImageUri: (imageUri) => set({ imageUri }),
   setImageDescription: (imageDescription) => set({ imageDescription }),
-  setIsGenerating: (isGenerating) => set({ isGenerating }),
-  setIsAnalyzingImage: (isAnalyzingImage) => set({ isAnalyzingImage }),
-  setResults: (results) => set({ results }),
+  setTemplateId: (templateId) => set({ templateId }),
   setError: (error) => set({ error }),
-  reset: () => set(initialState),
 
-  getRequest: () => {
+  generate: async () => {
     const state = get();
-    return {
-      topic: state.topic,
-      platform: state.platform,
-      tone: state.tone,
-      language: state.language,
-      count: state.count,
-      includeEmojis: state.includeEmojis,
-      includeCta: state.includeCta,
-      includeHashtags: state.includeHashtags,
-      persona: state.persona || undefined,
-      templateId: state.templateId || undefined,
-      imageDescription: state.imageDescription || undefined,
-    };
+    if (!state.topic.trim()) {
+      set({ error: "Please enter a topic" });
+      return;
+    }
+
+    set({ isGenerating: true, error: null });
+
+    try {
+      const request: GenerationRequest = {
+        topic: state.topic,
+        platform: state.platform,
+        tone: state.tone,
+        language: state.language,
+        count: state.count,
+        includeEmojis: state.includeEmojis,
+        includeCta: state.includeCta,
+        includeHashtags: state.includeHashtags,
+        ...(state.persona && { persona: state.persona }),
+        ...(state.imageDescription && { imageDescription: state.imageDescription }),
+        ...(state.templateId && { templateId: state.templateId }),
+      };
+
+      const result = await api.generateCaption(request);
+      set({
+        result,
+        captions: result.captions,
+        hashtags: result.hashtags,
+        isGenerating: false,
+      });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : "Generation failed",
+        isGenerating: false,
+      });
+    }
+  },
+
+  loadTemplates: async () => {
+    set({ isLoadingTemplates: true });
+    try {
+      const templates = await api.getTemplates();
+      set({ templates, isLoadingTemplates: false });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : "Failed to load templates",
+        isLoadingTemplates: false,
+      });
+    }
+  },
+
+  loadHistory: async () => {
+    set({ isLoadingHistory: true });
+    try {
+      const data = await api.getHistory();
+      set({ history: data.generations, isLoadingHistory: false });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : "Failed to load history",
+        isLoadingHistory: false,
+      });
+    }
+  },
+
+  loadFavorites: async () => {
+    set({ isLoadingFavorites: true });
+    try {
+      const favorites = await api.getFavorites();
+      set({ favorites, isLoadingFavorites: false });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : "Failed to load favorites",
+        isLoadingFavorites: false,
+      });
+    }
+  },
+
+  toggleFavorite: async (captionId: string) => {
+    try {
+      await api.toggleFavorite(captionId);
+      // Refresh favorites list
+      const favorites = await api.getFavorites();
+      set({ favorites });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : "Failed to toggle favorite",
+      });
+    }
+  },
+
+  applyTemplate: (template: Template) => {
+    set({
+      templateId: template.id,
+      tone: template.tone,
+      ...(template.platform !== "all" && { platform: template.platform }),
+    });
+  },
+
+  reset: () => {
+    set({
+      ...initialFormState,
+      result: null,
+      captions: [],
+      hashtags: [],
+      error: null,
+    });
   },
 }));

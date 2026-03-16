@@ -1,135 +1,72 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import * as apiClient from "@/lib/api-client";
+import { useGenerationStore } from "@/stores/generation-store";
 import CopyButton from "@/components/shared/CopyButton";
-import type { GenerationResult } from "@/types/caption";
+import type { HistoryItem } from "@/types/caption";
 
 export default function HistoryScreen() {
   const { t } = useTranslation();
-  const [history, setHistory] = useState<GenerationResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchHistory = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiClient.getHistory();
-      setHistory(data);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("common.error")
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const { history, isLoadingHistory, loadHistory } = useGenerationStore();
 
   useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    loadHistory();
+  }, [loadHistory]);
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const renderItem = useCallback(
-    ({ item }: { item: GenerationResult }) => (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardMeta}>
-            <View style={styles.platformBadge}>
-              <Text style={styles.platformBadgeText}>
-                {item.platform}
-              </Text>
-            </View>
-            <View style={styles.toneBadge}>
-              <Text style={styles.toneBadgeText}>
-                {t(`tones.${item.tone}`)}
-              </Text>
-            </View>
+  const renderItem = ({ item }: { item: HistoryItem }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.badges}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.platform}</Text>
           </View>
-          <Text style={styles.dateText}>
-            {formatDate(item.createdAt)}
-          </Text>
+          <View style={[styles.badge, styles.toneBadge]}>
+            <Text style={styles.badgeText}>{item.tone}</Text>
+          </View>
         </View>
-
-        {item.captions.slice(0, 2).map((caption, idx) => (
-          <View key={idx} style={styles.captionPreview}>
-            <Text style={styles.captionText} numberOfLines={3}>
-              {caption.text}
-            </Text>
-            <CopyButton text={caption.text} compact />
-          </View>
-        ))}
-
-        {item.captions.length > 2 && (
-          <Text style={styles.moreText}>
-            +{item.captions.length - 2} more captions
-          </Text>
-        )}
-
-        {item.hashtags.length > 0 && (
-          <View style={styles.hashtagPreview}>
-            <Text style={styles.hashtagText} numberOfLines={1}>
-              {item.hashtags
-                .slice(0, 5)
-                .map((h) => h.tag)
-                .join(" ")}
-            </Text>
-          </View>
-        )}
+        <Text style={styles.date}>
+          {new Date(item.createdAt).toLocaleDateString()}
+        </Text>
       </View>
-    ),
-    [t]
+      <Text style={styles.topic} numberOfLines={2}>
+        {item.inputTopic}
+      </Text>
+      {item.captions.length > 0 && (
+        <View style={styles.captionPreview}>
+          <Text style={styles.captionText} numberOfLines={3}>
+            {item.captions[0].text}
+          </Text>
+          <CopyButton text={item.captions[0].text} />
+        </View>
+      )}
+      <Text style={styles.meta}>
+        {item.captions.length} captions | {item.model}
+      </Text>
+    </View>
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.headerIcon}>🕐</Text>
-        <View>
-          <Text style={styles.title}>{t("history.title")}</Text>
-          <Text style={styles.subtitle}>
-            {t("history.subtitle")}
-          </Text>
-        </View>
+        <Text style={styles.title}>{t("history.title")}</Text>
+        <Text style={styles.subtitle}>{t("history.subtitle")}</Text>
       </View>
 
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#A855F7" size="large" />
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={fetchHistory}
-          >
-            <Text style={styles.retryBtnText}>
-              {t("common.retry")}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {isLoadingHistory ? (
+        <ActivityIndicator
+          size="large"
+          color="#8b5cf6"
+          style={styles.loader}
+        />
       ) : history.length === 0 ? (
-        <View style={styles.center}>
+        <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🕐</Text>
           <Text style={styles.emptyText}>{t("history.empty")}</Text>
         </View>
@@ -137,11 +74,9 @@ export default function HistoryScreen() {
         <FlatList
           data={history}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id || Math.random().toString()}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          onRefresh={fetchHistory}
-          refreshing={loading}
         />
       )}
     </SafeAreaView>
@@ -149,138 +84,107 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  safe: {
     flex: 1,
     backgroundColor: "#0F0A1A",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     padding: 20,
-    paddingBottom: 16,
-  },
-  headerIcon: {
-    fontSize: 32,
+    paddingBottom: 12,
   },
   title: {
-    fontSize: 24,
+    color: "#f1f5f9",
+    fontSize: 28,
     fontWeight: "800",
-    color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: "#71717A",
-    marginTop: 2,
+    color: "#64748b",
+    fontSize: 14,
+    marginTop: 4,
   },
   list: {
     padding: 20,
-    paddingTop: 0,
-    paddingBottom: 40,
+    paddingTop: 8,
+    gap: 12,
   },
   card: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(30, 27, 46, 0.6)",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(139, 92, 246, 0.15)",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  cardMeta: {
+  badges: {
     flexDirection: "row",
     gap: 6,
   },
-  platformBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(139, 92, 246, 0.15)",
   },
-  platformBadgeText: {
-    color: "#3B82F6",
+  toneBadge: {
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+  },
+  badgeText: {
+    color: "#c4b5fd",
     fontSize: 11,
     fontWeight: "600",
     textTransform: "capitalize",
   },
-  toneBadge: {
-    backgroundColor: "rgba(168, 85, 247, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  date: {
+    color: "#475569",
+    fontSize: 12,
   },
-  toneBadgeText: {
-    color: "#A855F7",
-    fontSize: 11,
+  topic: {
+    color: "#e2e8f0",
+    fontSize: 15,
     fontWeight: "600",
-  },
-  dateText: {
-    color: "#71717A",
-    fontSize: 11,
+    marginBottom: 10,
   },
   captionPreview: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
     gap: 10,
-    marginBottom: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(15, 10, 26, 0.5)",
+    borderRadius: 10,
+    padding: 12,
   },
   captionText: {
     flex: 1,
-    color: "#D4D4D8",
+    color: "#94a3b8",
     fontSize: 13,
     lineHeight: 18,
   },
-  moreText: {
-    color: "#71717A",
-    fontSize: 12,
-    fontStyle: "italic",
-    marginBottom: 8,
+  meta: {
+    color: "#475569",
+    fontSize: 11,
+    marginTop: 10,
+    textTransform: "capitalize",
   },
-  hashtagPreview: {
-    marginTop: 4,
+  loader: {
+    marginTop: 60,
   },
-  hashtagText: {
-    color: "#A855F7",
-    fontSize: 12,
-  },
-  center: {
+  empty: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  retryBtn: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  retryBtnText: {
-    color: "#A855F7",
-    fontWeight: "600",
+    paddingTop: 80,
   },
   emptyIcon: {
     fontSize: 48,
     marginBottom: 12,
   },
   emptyText: {
-    color: "#71717A",
+    color: "#64748b",
     fontSize: 15,
-    textAlign: "center",
   },
 });

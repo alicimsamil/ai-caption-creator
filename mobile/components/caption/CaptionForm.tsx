@@ -1,20 +1,21 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Switch,
   StyleSheet,
+  Switch,
+  Alert,
   Image,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useTranslation } from "react-i18next";
 import { useGenerationStore } from "@/stores/generation-store";
 import PlatformSelector from "./PlatformSelector";
 import ToneSelector from "./ToneSelector";
+import { analyzeImage } from "@/lib/api-client";
 import type { Language } from "@/types/platform";
 
 const LANGUAGES: { id: Language; label: string }[] = [
@@ -30,41 +31,51 @@ const LANGUAGES: { id: Language; label: string }[] = [
   { id: "zh", label: "Chinese" },
 ];
 
-interface CaptionFormProps {
-  onGenerate: () => void;
-}
-
-export default function CaptionForm({ onGenerate }: CaptionFormProps) {
+export default function CaptionForm() {
   const { t } = useTranslation();
   const store = useGenerationStore();
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [analyzingImage, setAnalyzingImage] = useState(false);
 
   const pickImage = async (source: "camera" | "gallery") => {
     let result;
     if (source === "camera") {
-      const permission =
-        await ImagePicker.requestCameraPermissionsAsync();
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
-          "Permission required",
-          "Camera permission is needed to take photos."
-        );
+        Alert.alert("Permission needed", "Camera permission is required");
         return;
       }
       result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
-        base64: true,
       });
     } else {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission needed", "Gallery permission is required");
+        return;
+      }
       result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
-        base64: true,
       });
     }
 
     if (!result.canceled && result.assets[0]) {
-      store.setImageUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      setSelectedImage(asset.uri);
+      setAnalyzingImage(true);
+      try {
+        const analysis = await analyzeImage(
+          asset.uri,
+          asset.mimeType || "image/jpeg"
+        );
+        store.setImageDescription(analysis.description);
+      } catch {
+        Alert.alert("Error", "Failed to analyze image");
+      } finally {
+        setAnalyzingImage(false);
+      }
     }
   };
 
@@ -76,237 +87,215 @@ export default function CaptionForm({ onGenerate }: CaptionFormProps) {
     ]);
   };
 
-  const removeImage = () => {
-    store.setImageUri(null);
-    store.setImageDescription(null);
-  };
-
   return (
     <View style={styles.container}>
-      {/* Topic Input */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{t("generate.topic")}</Text>
-        <TextInput
-          style={styles.textInput}
-          placeholder={t("generate.topicPlaceholder")}
-          placeholderTextColor="#52525B"
-          value={store.topic}
-          onChangeText={store.setTopic}
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
-      </View>
-
-      {/* Platform Selector */}
+      {/* Platform selector */}
+      <Text style={styles.label}>{t("generate.platform")}</Text>
       <PlatformSelector
         selected={store.platform}
         onSelect={store.setPlatform}
       />
 
-      {/* Tone Selector */}
+      {/* Topic input */}
+      <Text style={[styles.label, { marginTop: 20 }]}>
+        {t("generate.topic")}
+      </Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder={t("generate.topicPlaceholder")}
+        placeholderTextColor="#475569"
+        value={store.topic}
+        onChangeText={store.setTopic}
+        multiline
+        numberOfLines={3}
+        textAlignVertical="top"
+      />
+
+      {/* Tone selector */}
+      <Text style={[styles.label, { marginTop: 20 }]}>
+        {t("generate.tone")}
+      </Text>
       <ToneSelector selected={store.tone} onSelect={store.setTone} />
 
-      {/* Language Selector */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{t("generate.language")}</Text>
-        <View style={styles.langGrid}>
-          {LANGUAGES.map((lang) => {
-            const isSelected = lang.id === store.language;
-            return (
-              <TouchableOpacity
-                key={lang.id}
-                style={[
-                  styles.langChip,
-                  isSelected && styles.langChipSelected,
-                ]}
-                onPress={() => store.setLanguage(lang.id)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.langChipText,
-                    isSelected && styles.langChipTextSelected,
-                  ]}
-                >
-                  {lang.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Count Selector */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{t("generate.count")}</Text>
-        <View style={styles.countRow}>
-          {[1, 2, 3, 5].map((num) => {
-            const isSelected = num === store.count;
-            return (
-              <TouchableOpacity
-                key={num}
-                style={[
-                  styles.countChip,
-                  isSelected && styles.countChipSelected,
-                ]}
-                onPress={() => store.setCount(num)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.countChipText,
-                    isSelected && styles.countChipTextSelected,
-                  ]}
-                >
-                  {num}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Image Picker */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{t("generate.uploadImage")}</Text>
-        {store.imageUri ? (
-          <View style={styles.imagePreview}>
-            <Image
-              source={{ uri: store.imageUri }}
-              style={styles.previewImage}
-            />
-            <TouchableOpacity
-              style={styles.removeImageBtn}
-              onPress={removeImage}
-            >
-              <Text style={styles.removeImageText}>✕</Text>
-            </TouchableOpacity>
-            {store.isAnalyzingImage && (
-              <View style={styles.analyzingOverlay}>
-                <ActivityIndicator color="#A855F7" />
-                <Text style={styles.analyzingText}>
-                  {t("generate.analyzing")}
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : (
+      {/* Language selector */}
+      <Text style={[styles.label, { marginTop: 20 }]}>
+        {t("generate.language")}
+      </Text>
+      <View style={styles.langRow}>
+        {LANGUAGES.slice(0, 5).map((lang) => (
           <TouchableOpacity
-            style={styles.imagePickerBtn}
-            onPress={showImagePicker}
-            activeOpacity={0.7}
+            key={lang.id}
+            style={[
+              styles.langChip,
+              store.language === lang.id && styles.langChipSelected,
+            ]}
+            onPress={() => store.setLanguage(lang.id)}
           >
-            <Text style={styles.imagePickerIcon}>📷</Text>
-            <Text style={styles.imagePickerText}>
-              {t("generate.uploadImageDesc")}
+            <Text
+              style={[
+                styles.langText,
+                store.language === lang.id && styles.langTextSelected,
+              ]}
+            >
+              {lang.label}
             </Text>
           </TouchableOpacity>
-        )}
+        ))}
       </View>
+
+      {/* Count selector */}
+      <Text style={[styles.label, { marginTop: 20 }]}>
+        {t("generate.count")}
+      </Text>
+      <View style={styles.countRow}>
+        {[1, 2, 3, 5].map((num) => (
+          <TouchableOpacity
+            key={num}
+            style={[
+              styles.countChip,
+              store.count === num && styles.countChipSelected,
+            ]}
+            onPress={() => store.setCount(num)}
+          >
+            <Text
+              style={[
+                styles.countText,
+                store.count === num && styles.countTextSelected,
+              ]}
+            >
+              {num}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Image picker */}
+      <TouchableOpacity
+        style={styles.imageButton}
+        onPress={showImagePicker}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.imageButtonText}>
+          {analyzingImage
+            ? t("generate.analyzing")
+            : t("generate.uploadImage")}
+        </Text>
+        {analyzingImage && (
+          <ActivityIndicator
+            size="small"
+            color="#8b5cf6"
+            style={{ marginLeft: 8 }}
+          />
+        )}
+      </TouchableOpacity>
+
+      {selectedImage && (
+        <Image
+          source={{ uri: selectedImage }}
+          style={styles.imagePreview}
+          resizeMode="cover"
+        />
+      )}
+
+      {store.imageDescription ? (
+        <View style={styles.analysisBox}>
+          <Text style={styles.analysisLabel}>
+            {t("generate.imageAnalysis")}
+          </Text>
+          <Text style={styles.analysisText}>{store.imageDescription}</Text>
+        </View>
+      ) : null}
 
       {/* Toggles */}
-      <View style={styles.togglesContainer}>
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>
-            {t("generate.includeEmojis")}
-          </Text>
-          <Switch
-            value={store.includeEmojis}
-            onValueChange={store.setIncludeEmojis}
-            trackColor={{
-              false: "#3F3F46",
-              true: "rgba(168, 85, 247, 0.4)",
-            }}
-            thumbColor={store.includeEmojis ? "#A855F7" : "#71717A"}
-          />
-        </View>
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>
-            {t("generate.includeCta")}
-          </Text>
-          <Switch
-            value={store.includeCta}
-            onValueChange={store.setIncludeCta}
-            trackColor={{
-              false: "#3F3F46",
-              true: "rgba(168, 85, 247, 0.4)",
-            }}
-            thumbColor={store.includeCta ? "#A855F7" : "#71717A"}
-          />
-        </View>
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>
-            {t("generate.includeHashtags")}
-          </Text>
-          <Switch
-            value={store.includeHashtags}
-            onValueChange={store.setIncludeHashtags}
-            trackColor={{
-              false: "#3F3F46",
-              true: "rgba(168, 85, 247, 0.4)",
-            }}
-            thumbColor={
-              store.includeHashtags ? "#A855F7" : "#71717A"
-            }
-          />
-        </View>
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleLabel}>{t("generate.includeEmojis")}</Text>
+        <Switch
+          value={store.includeEmojis}
+          onValueChange={store.setIncludeEmojis}
+          trackColor={{ false: "#334155", true: "#7c3aed" }}
+          thumbColor={store.includeEmojis ? "#c4b5fd" : "#94a3b8"}
+        />
+      </View>
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleLabel}>{t("generate.includeCta")}</Text>
+        <Switch
+          value={store.includeCta}
+          onValueChange={store.setIncludeCta}
+          trackColor={{ false: "#334155", true: "#7c3aed" }}
+          thumbColor={store.includeCta ? "#c4b5fd" : "#94a3b8"}
+        />
+      </View>
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleLabel}>{t("generate.includeHashtags")}</Text>
+        <Switch
+          value={store.includeHashtags}
+          onValueChange={store.setIncludeHashtags}
+          trackColor={{ false: "#334155", true: "#7c3aed" }}
+          thumbColor={store.includeHashtags ? "#c4b5fd" : "#94a3b8"}
+        />
       </View>
 
-      {/* Generate Button */}
+      {/* Persona */}
+      <Text style={[styles.label, { marginTop: 16 }]}>
+        {t("generate.persona")}
+      </Text>
+      <TextInput
+        style={[styles.textInput, { minHeight: 44 }]}
+        placeholder={t("generate.personaPlaceholder")}
+        placeholderTextColor="#475569"
+        value={store.persona}
+        onChangeText={store.setPersona}
+      />
+
+      {/* Generate button */}
       <TouchableOpacity
-        style={[
-          styles.generateBtn,
-          (!store.topic.trim() || store.isGenerating) &&
-            styles.generateBtnDisabled,
-        ]}
-        onPress={onGenerate}
-        disabled={!store.topic.trim() || store.isGenerating}
+        style={[styles.generateBtn, store.isGenerating && styles.generateBtnDisabled]}
+        onPress={store.generate}
+        disabled={store.isGenerating}
         activeOpacity={0.8}
       >
         {store.isGenerating ? (
-          <View style={styles.generatingRow}>
-            <ActivityIndicator color="#FFFFFF" size="small" />
-            <Text style={styles.generateBtnText}>
-              {t("common.generating")}
-            </Text>
-          </View>
+          <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.generateBtnText}>
-            ✨ {t("generate.generateBtn")}
+            {store.result
+              ? t("generate.regenerate")
+              : t("generate.generateBtn")}
           </Text>
         )}
       </TouchableOpacity>
+
+      {store.error && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{store.error}</Text>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    gap: 4,
-  },
-  section: {
-    marginBottom: 16,
+    paddingBottom: 20,
   },
   label: {
+    color: "#c4b5fd",
     fontSize: 14,
-    fontWeight: "600",
-    color: "#A1A1AA",
+    fontWeight: "700",
     marginBottom: 8,
-    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   textInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(30, 27, 46, 0.8)",
     borderRadius: 12,
     padding: 14,
-    color: "#E4E4E7",
+    color: "#e2e8f0",
     fontSize: 15,
+    borderWidth: 1,
+    borderColor: "rgba(139, 92, 246, 0.2)",
     minHeight: 80,
   },
-  langGrid: {
+  langRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
@@ -314,150 +303,135 @@ const styles = StyleSheet.create({
   langChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 16,
+    backgroundColor: "rgba(30, 27, 46, 0.8)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(139, 92, 246, 0.2)",
   },
   langChipSelected: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    borderColor: "#A855F7",
+    backgroundColor: "rgba(139, 92, 246, 0.2)",
+    borderColor: "#8b5cf6",
   },
-  langChipText: {
+  langText: {
+    color: "#94a3b8",
     fontSize: 13,
     fontWeight: "600",
-    color: "#A1A1AA",
   },
-  langChipTextSelected: {
-    color: "#A855F7",
+  langTextSelected: {
+    color: "#c4b5fd",
   },
   countRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   countChip: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(30, 27, 46, 0.8)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(139, 92, 246, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
   countChipSelected: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    borderColor: "#A855F7",
+    backgroundColor: "rgba(139, 92, 246, 0.25)",
+    borderColor: "#8b5cf6",
   },
-  countChipText: {
+  countText: {
+    color: "#94a3b8",
     fontSize: 16,
     fontWeight: "700",
-    color: "#A1A1AA",
   },
-  countChipTextSelected: {
-    color: "#A855F7",
+  countTextSelected: {
+    color: "#c4b5fd",
   },
-  imagePickerBtn: {
+  imageButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 12,
+    borderColor: "rgba(139, 92, 246, 0.3)",
     borderStyle: "dashed",
-    paddingVertical: 24,
+    backgroundColor: "rgba(139, 92, 246, 0.05)",
   },
-  imagePickerIcon: {
-    fontSize: 24,
-  },
-  imagePickerText: {
-    color: "#A1A1AA",
+  imageButtonText: {
+    color: "#a78bfa",
     fontSize: 14,
-  },
-  imagePreview: {
-    position: "relative",
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  previewImage: {
-    width: "100%",
-    height: 180,
-    borderRadius: 12,
-  },
-  removeImageBtn: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  removeImageText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  analyzingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  analyzingText: {
-    color: "#A855F7",
-    fontSize: 13,
     fontWeight: "600",
   },
-  togglesContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+  imagePreview: {
+    width: "100%",
+    height: 200,
     borderRadius: 12,
+    marginTop: 12,
+  },
+  analysisBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(139, 92, 246, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    padding: 4,
-    marginBottom: 20,
+    borderColor: "rgba(139, 92, 246, 0.15)",
+  },
+  analysisLabel: {
+    color: "#a78bfa",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  analysisText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    lineHeight: 18,
   },
   toggleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    marginTop: 14,
+    paddingVertical: 4,
   },
   toggleLabel: {
-    color: "#D4D4D8",
+    color: "#cbd5e1",
     fontSize: 14,
-    fontWeight: "500",
   },
   generateBtn: {
-    backgroundColor: "#A855F7",
-    borderRadius: 14,
+    marginTop: 24,
     paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: "#7c3aed",
     alignItems: "center",
-    shadowColor: "#A855F7",
+    shadowColor: "#7c3aed",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 6,
   },
   generateBtnDisabled: {
-    backgroundColor: "#52525B",
-    shadowOpacity: 0,
-    elevation: 0,
+    opacity: 0.6,
   },
   generateBtnText: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+    letterSpacing: 0.5,
   },
-  generatingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  errorBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  errorText: {
+    color: "#fca5a5",
+    fontSize: 13,
   },
 });

@@ -51,9 +51,9 @@ export async function setLanguage(language: string): Promise<void> {
 export async function getModel(): Promise<string> {
   try {
     const model = await AsyncStorage.getItem(KEYS.MODEL);
-    return model || "";
+    return model || "llama3";
   } catch {
-    return "";
+    return "llama3";
   }
 }
 
@@ -62,6 +62,5 @@ export async function setModel(model: string): Promise<void> {
 }
 
 export async function clearAll(): Promise<void> {
-  const keys = Object.values(KEYS);
-  await AsyncStorage.multiRemove(keys);
+  await AsyncStorage.multiRemove(Object.values(KEYS));
 }

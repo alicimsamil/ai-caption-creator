@@ -8,10 +8,10 @@ interface HashtagListProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  niche: "#A855F7",
-  broad: "#3B82F6",
-  trending: "#F59E0B",
-  branded: "#10B981",
+  niche: "#8b5cf6",
+  broad: "#3b82f6",
+  trending: "#f59e0b",
+  branded: "#ec4899",
 };
 
 export default function HashtagList({ hashtags }: HashtagListProps) {
@@ -23,36 +23,26 @@ export default function HashtagList({ hashtags }: HashtagListProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Hashtags</Text>
-        <CopyButton text={allTags} compact />
+        <CopyButton text={allTags} />
       </View>
-      <ScrollView
-        horizontal={false}
-        contentContainerStyle={styles.tagContainer}
-      >
-        {hashtags.map((hashtag, index) => (
-          <View
-            key={index}
-            style={[
-              styles.tag,
-              {
-                borderColor:
-                  CATEGORY_COLORS[hashtag.category] || "#A855F7",
-              },
-            ]}
-          >
-            <Text style={styles.tagText}>{hashtag.tag}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.tagsRow}>
+          {hashtags.map((hashtag, index) => (
             <View
+              key={index}
               style={[
-                styles.relevancyDot,
+                styles.tag,
                 {
-                  backgroundColor:
-                    CATEGORY_COLORS[hashtag.category] || "#A855F7",
-                  opacity: hashtag.relevancy / 100,
+                  borderColor:
+                    CATEGORY_COLORS[hashtag.category] || "#8b5cf6",
                 },
               ]}
-            />
-          </View>
-        ))}
+            >
+              <Text style={styles.tagText}>{hashtag.tag}</Text>
+              <Text style={styles.categoryText}>{hashtag.category}</Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -69,33 +59,31 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: {
+    color: "#e2e8f0",
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
   },
-  tagContainer: {
+  tagsRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8,
+    paddingBottom: 4,
   },
   tag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(168, 85, 247, 0.1)",
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(139, 92, 246, 0.08)",
     borderWidth: 1,
   },
   tagText: {
-    color: "#D4D4D8",
+    color: "#c4b5fd",
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "600",
   },
-  relevancyDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginLeft: 6,
+  categoryText: {
+    color: "#64748b",
+    fontSize: 10,
+    marginTop: 2,
+    textTransform: "capitalize",
   },
 });

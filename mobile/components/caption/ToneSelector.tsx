@@ -1,100 +1,71 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-} from "react-native";
-import { useTranslation } from "react-i18next";
-import { TONE_CONFIGS } from "@/lib/platform-config";
+import { TouchableOpacity, Text, ScrollView, StyleSheet } from "react-native";
 import type { Tone } from "@/types/platform";
+import { TONE_CONFIGS } from "@/lib/platform-config";
 
 interface ToneSelectorProps {
   selected: Tone;
   onSelect: (tone: Tone) => void;
 }
 
-export default function ToneSelector({
-  selected,
-  onSelect,
-}: ToneSelectorProps) {
-  const { t } = useTranslation();
-
+export default function ToneSelector({ selected, onSelect }: ToneSelectorProps) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>{t("generate.tone")}</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {TONE_CONFIGS.map((tone) => {
-          const isSelected = tone.id === selected;
-          return (
-            <TouchableOpacity
-              key={tone.id}
-              style={[styles.chip, isSelected && styles.chipSelected]}
-              onPress={() => onSelect(tone.id)}
-              activeOpacity={0.7}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.container}
+    >
+      {TONE_CONFIGS.map((tone) => {
+        const isSelected = selected === tone.id;
+        return (
+          <TouchableOpacity
+            key={tone.id}
+            style={[styles.chip, isSelected && styles.chipSelected]}
+            onPress={() => onSelect(tone.id)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.emoji}>{tone.emoji}</Text>
+            <Text
+              style={[styles.chipText, isSelected && styles.chipTextSelected]}
             >
-              <Text style={styles.chipEmoji}>{tone.emoji}</Text>
-              <Text
-                style={[
-                  styles.chipText,
-                  isSelected && styles.chipTextSelected,
-                ]}
-              >
-                {t(`tones.${tone.id}`)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
+              {tone.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#A1A1AA",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  scrollContent: {
+    paddingVertical: 4,
     gap: 8,
-    paddingRight: 16,
   },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 20,
+    backgroundColor: "rgba(30, 27, 46, 0.8)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(139, 92, 246, 0.2)",
     gap: 6,
   },
   chipSelected: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    borderColor: "#A855F7",
+    backgroundColor: "rgba(139, 92, 246, 0.2)",
+    borderColor: "#8b5cf6",
   },
-  chipEmoji: {
+  emoji: {
     fontSize: 16,
   },
   chipText: {
+    color: "#94a3b8",
     fontSize: 13,
     fontWeight: "600",
-    color: "#A1A1AA",
   },
   chipTextSelected: {
-    color: "#A855F7",
+    color: "#c4b5fd",
   },
 });

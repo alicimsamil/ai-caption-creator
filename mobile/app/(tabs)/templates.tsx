@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -10,160 +10,78 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import * as apiClient from "@/lib/api-client";
 import { useGenerationStore } from "@/stores/generation-store";
 import type { Template } from "@/types/caption";
 
-const CATEGORY_EMOJIS: Record<string, string> = {
-  "product-launch": "🚀",
-  "behind-the-scenes": "🎬",
-  quote: "💬",
-  tutorial: "📖",
-  announcement: "📢",
-  engagement: "💬",
-  storytelling: "📝",
-  promotion: "🎯",
-  seasonal: "🌟",
-  "user-generated": "👥",
-  collaboration: "🤝",
-  milestone: "🏆",
-  "tips-tricks": "💡",
-  "before-after": "🔄",
-  question: "❓",
-  contest: "🎪",
-};
-
 export default function TemplatesScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const router = useRouter();
-  const store = useGenerationStore();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchTemplates = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiClient.getTemplates();
-      setTemplates(data);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("common.error")
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const { templates, isLoadingTemplates, loadTemplates, applyTemplate } =
+    useGenerationStore();
 
   useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
+    loadTemplates();
+  }, [loadTemplates]);
 
-  const handleUseTemplate = useCallback(
-    (template: Template) => {
-      store.setTemplateId(template.id);
-      if (template.tone) store.setTone(template.tone);
-      if (template.platform && template.platform !== "all") {
-        store.setPlatform(template.platform);
-      }
-      router.push("/(tabs)");
-    },
-    [store, router]
-  );
+  const handleUseTemplate = (template: Template) => {
+    applyTemplate(template);
+    router.navigate("/(tabs)");
+  };
 
-  const renderItem = useCallback(
-    ({ item }: { item: Template }) => {
-      const isTr = i18n.language === "tr";
-      const name = isTr && item.nameTr ? item.nameTr : item.name;
-      const desc =
-        isTr && item.descriptionTr
-          ? item.descriptionTr
-          : item.description;
-
-      return (
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => handleUseTemplate(item)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardEmoji}>
-              {CATEGORY_EMOJIS[item.category] || "📝"}
-            </Text>
-            <View style={styles.cardMeta}>
-              <View style={styles.platformBadge}>
-                <Text style={styles.platformBadgeText}>
-                  {item.platform === "all"
-                    ? t("templates.allPlatforms")
-                    : item.platform}
-                </Text>
-              </View>
-              {item.isBuiltIn && (
-                <View style={styles.builtInBadge}>
-                  <Text style={styles.builtInBadgeText}>
-                    {t("templates.builtIn")}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-          <Text style={styles.cardTitle}>{name}</Text>
-          <Text style={styles.cardDesc} numberOfLines={2}>
-            {desc}
-          </Text>
-          <View style={styles.cardFooter}>
-            <View style={styles.toneBadge}>
-              <Text style={styles.toneBadgeText}>
-                {t(`tones.${item.tone}`)}
-              </Text>
-            </View>
-            <Text style={styles.useText}>
-              {t("templates.useTemplate")} →
+  const renderTemplate = ({ item }: { item: Template }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.badges}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {item.platform === "all" ? "All" : item.platform}
             </Text>
           </View>
-        </TouchableOpacity>
-      );
-    },
-    [handleUseTemplate, i18n.language, t]
+          <View style={[styles.badge, styles.toneBadge]}>
+            <Text style={styles.badgeText}>{item.tone}</Text>
+          </View>
+          {item.isBuiltIn && (
+            <View style={[styles.badge, styles.builtInBadge]}>
+              <Text style={styles.badgeText}>{t("templates.builtIn")}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+      <Text style={styles.cardTitle}>{item.name}</Text>
+      <Text style={styles.cardDesc} numberOfLines={2}>
+        {item.description}
+      </Text>
+      <TouchableOpacity
+        style={styles.useBtn}
+        onPress={() => handleUseTemplate(item)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.useBtnText}>{t("templates.useTemplate")}</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.headerIcon}>📋</Text>
-        <View>
-          <Text style={styles.title}>{t("templates.title")}</Text>
-          <Text style={styles.subtitle}>
-            {t("templates.subtitle")}
-          </Text>
-        </View>
+        <Text style={styles.title}>{t("templates.title")}</Text>
+        <Text style={styles.subtitle}>{t("templates.subtitle")}</Text>
       </View>
 
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#A855F7" size="large" />
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={fetchTemplates}
-          >
-            <Text style={styles.retryBtnText}>
-              {t("common.retry")}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {isLoadingTemplates ? (
+        <ActivityIndicator
+          size="large"
+          color="#8b5cf6"
+          style={styles.loader}
+        />
       ) : templates.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>{t("common.noResults")}</Text>
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>{t("templates.empty")}</Text>
         </View>
       ) : (
         <FlatList
           data={templates}
-          renderItem={renderItem}
+          renderItem={renderTemplate}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -174,136 +92,98 @@ export default function TemplatesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  safe: {
     flex: 1,
     backgroundColor: "#0F0A1A",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     padding: 20,
-    paddingBottom: 16,
-  },
-  headerIcon: {
-    fontSize: 32,
+    paddingBottom: 12,
   },
   title: {
-    fontSize: 24,
+    color: "#f1f5f9",
+    fontSize: 28,
     fontWeight: "800",
-    color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: "#71717A",
-    marginTop: 2,
+    color: "#64748b",
+    fontSize: 14,
+    marginTop: 4,
   },
   list: {
     padding: 20,
-    paddingTop: 0,
-    paddingBottom: 40,
+    paddingTop: 8,
+    gap: 12,
   },
   card: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(30, 27, 46, 0.6)",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(139, 92, 246, 0.15)",
   },
   cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 10,
   },
-  cardEmoji: {
-    fontSize: 28,
-  },
-  cardMeta: {
+  badges: {
     flexDirection: "row",
     gap: 6,
   },
-  platformBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(139, 92, 246, 0.15)",
   },
-  platformBadgeText: {
-    color: "#3B82F6",
+  toneBadge: {
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+  },
+  builtInBadge: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+  },
+  badgeText: {
+    color: "#c4b5fd",
     fontSize: 11,
     fontWeight: "600",
     textTransform: "capitalize",
   },
-  builtInBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  builtInBadgeText: {
-    color: "#10B981",
-    fontSize: 11,
-    fontWeight: "600",
-  },
   cardTitle: {
+    color: "#e2e8f0",
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 4,
   },
   cardDesc: {
+    color: "#94a3b8",
     fontSize: 13,
-    color: "#A1A1AA",
+    marginTop: 4,
     lineHeight: 18,
-    marginBottom: 12,
   },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  useBtn: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(139, 92, 246, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(139, 92, 246, 0.3)",
     alignItems: "center",
   },
-  toneBadge: {
-    backgroundColor: "rgba(168, 85, 247, 0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  toneBadgeText: {
-    color: "#A855F7",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  useText: {
-    color: "#A855F7",
+  useBtnText: {
+    color: "#a78bfa",
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  center: {
+  loader: {
+    marginTop: 60,
+  },
+  empty: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  retryBtn: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  retryBtnText: {
-    color: "#A855F7",
-    fontWeight: "600",
+    paddingTop: 80,
   },
   emptyText: {
-    color: "#71717A",
+    color: "#64748b",
     fontSize: 15,
   },
 });

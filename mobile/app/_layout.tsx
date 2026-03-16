@@ -2,14 +2,14 @@ import React, { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, StyleSheet } from "react-native";
-import i18n from "i18next";
+import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 import * as Localization from "expo-localization";
 import en from "@/i18n/en.json";
 import tr from "@/i18n/tr.json";
 import { getLanguage } from "@/lib/storage";
 
-i18n.use(initReactI18next).init({
+i18next.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     tr: { translation: tr },
@@ -25,14 +25,9 @@ export default function RootLayout() {
   useEffect(() => {
     (async () => {
       const savedLang = await getLanguage();
-      if (savedLang) {
-        i18n.changeLanguage(savedLang);
-      } else {
-        const deviceLocale = Localization.getLocales()[0]?.languageCode;
-        if (deviceLocale && (deviceLocale === "tr" || deviceLocale === "en")) {
-          i18n.changeLanguage(deviceLocale);
-        }
-      }
+      const deviceLang = Localization.getLocales()[0]?.languageCode || "en";
+      const lang = savedLang || (["en", "tr"].includes(deviceLang) ? deviceLang : "en");
+      i18next.changeLanguage(lang);
     })();
   }, []);
 
@@ -45,11 +40,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: "#0F0A1A" },
           animation: "slide_from_right",
         }}
-      >
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="trending" />
-        <Stack.Screen name="generate/result" />
-      </Stack>
+      />
     </View>
   );
 }

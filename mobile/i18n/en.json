@@ -16,8 +16,6 @@
     "noResults": "No results found",
     "error": "Something went wrong",
     "retry": "Try again",
-    "export": "Export",
-    "import": "Import",
     "selectAll": "Select All",
     "copyAll": "Copy All"
   },
@@ -26,8 +24,6 @@
     "templates": "Templates",
     "history": "History",
     "favorites": "Favorites",
-    "trending": "Trending",
-    "calendar": "Calendar",
     "settings": "Settings"
   },
   "generate": {
@@ -53,27 +49,17 @@
     "results": "Results",
     "captions": "Captions",
     "hashtags": "Hashtags",
-    "charCount": "{{count}}/{{limit}} characters",
-    "abVariant": "A/B Variants",
-    "carousel": "Carousel Captions",
-    "carouselSlides": "Number of Slides",
-    "hookBodyCta": "Hook + Body + CTA",
-    "hook": "Hook",
-    "body": "Body",
-    "cta": "Call to Action",
-    "refine": "Refine",
-    "refineInstruction": "How should I change this?",
-    "refinePlaceholder": "e.g., make it shorter, add more emojis, change tone to funny..."
+    "charCount": "{count}/{limit} characters"
   },
   "templates": {
     "title": "Caption Templates",
     "subtitle": "Pre-built templates for different content types",
     "useTemplate": "Use Template",
-    "createCustom": "Create Custom Template",
     "builtIn": "Built-in",
     "custom": "Custom",
     "allPlatforms": "All Platforms",
-    "allCategories": "All Categories"
+    "allCategories": "All Categories",
+    "empty": "No templates found"
   },
   "history": {
     "title": "Generation History",
@@ -89,14 +75,6 @@
     "addedToFavorites": "Added to favorites",
     "removedFromFavorites": "Removed from favorites"
   },
-  "trending": {
-    "title": "Trending Hashtags",
-    "subtitle": "Discover trending hashtags across platforms",
-    "refresh": "Refresh Trends",
-    "hashtagCloud": "Hashtag Cloud",
-    "topHashtags": "Top Hashtags",
-    "copyHashtag": "Copy"
-  },
   "settings": {
     "title": "Settings",
     "subtitle": "Configure your CaptionAI experience",
@@ -104,16 +82,15 @@
     "serverUrlPlaceholder": "http://localhost:3000",
     "aiModel": "AI Model",
     "defaultLanguage": "Default Language",
-    "defaultPlatform": "Default Platform",
-    "defaultTone": "Default Tone",
     "theme": "Theme",
-    "themeDark": "Dark",
-    "themeLight": "Light",
+    "dark": "Dark",
+    "light": "Light",
     "connectionStatus": "Connection Status",
     "connected": "Connected",
     "disconnected": "Disconnected",
     "testConnection": "Test Connection",
-    "saved": "Settings saved"
+    "saved": "Settings saved",
+    "testing": "Testing..."
   },
   "platforms": {
     "instagram": "Instagram",

@@ -16,8 +16,6 @@
     "noResults": "Sonuc bulunamadi",
     "error": "Bir hata olustu",
     "retry": "Tekrar dene",
-    "export": "Disa Aktar",
-    "import": "Ice Aktar",
     "selectAll": "Tumunu Sec",
     "copyAll": "Tumunu Kopyala"
   },
@@ -26,8 +24,6 @@
     "templates": "Sablonlar",
     "history": "Gecmis",
     "favorites": "Favoriler",
-    "trending": "Trendler",
-    "calendar": "Takvim",
     "settings": "Ayarlar"
   },
   "generate": {
@@ -43,7 +39,7 @@
     "includeCta": "Aksiyon Cagrisi Ekle",
     "includeHashtags": "Hashtag Uret",
     "uploadImage": "Gorsel Yukle",
-    "uploadImageDesc": "Fotograf cekin veya galeriden secin",
+    "uploadImageDesc": "Fotograf cek veya galeriden sec",
     "analyzing": "Gorsel analiz ediliyor...",
     "imageAnalysis": "Gorsel Analizi",
     "persona": "Hedef Kitle",
@@ -53,27 +49,17 @@
     "results": "Sonuclar",
     "captions": "Captionlar",
     "hashtags": "Hashtagler",
-    "charCount": "{{count}}/{{limit}} karakter",
-    "abVariant": "A/B Varyantlari",
-    "carousel": "Carousel Captionlari",
-    "carouselSlides": "Slide Sayisi",
-    "hookBodyCta": "Hook + Govde + CTA",
-    "hook": "Hook (Dikkat Cekici)",
-    "body": "Govde",
-    "cta": "Aksiyon Cagrisi",
-    "refine": "Ince Ayar",
-    "refineInstruction": "Nasil degistireyim?",
-    "refinePlaceholder": "orn. daha kisa yap, emoji ekle, komik tona cevir..."
+    "charCount": "{count}/{limit} karakter"
   },
   "templates": {
     "title": "Caption Sablonlari",
     "subtitle": "Farkli icerik turleri icin hazir sablonlar",
     "useTemplate": "Sablonu Kullan",
-    "createCustom": "Ozel Sablon Olustur",
     "builtIn": "Hazir",
     "custom": "Ozel",
     "allPlatforms": "Tum Platformlar",
-    "allCategories": "Tum Kategoriler"
+    "allCategories": "Tum Kategoriler",
+    "empty": "Sablon bulunamadi"
   },
   "history": {
     "title": "Uretim Gecmisi",
@@ -89,14 +75,6 @@
     "addedToFavorites": "Favorilere eklendi",
     "removedFromFavorites": "Favorilerden cikarildi"
   },
-  "trending": {
-    "title": "Trend Hashtagler",
-    "subtitle": "Platformlardaki trend hashtagleri kesfedin",
-    "refresh": "Trendleri Yenile",
-    "hashtagCloud": "Hashtag Bulutu",
-    "topHashtags": "En Populer Hashtagler",
-    "copyHashtag": "Kopyala"
-  },
   "settings": {
     "title": "Ayarlar",
     "subtitle": "CaptionAI deneyiminizi yapilandirin",
@@ -104,16 +82,15 @@
     "serverUrlPlaceholder": "http://localhost:3000",
     "aiModel": "AI Modeli",
     "defaultLanguage": "Varsayilan Dil",
-    "defaultPlatform": "Varsayilan Platform",
-    "defaultTone": "Varsayilan Ton",
     "theme": "Tema",
-    "themeDark": "Karanlik",
-    "themeLight": "Aydinlik",
+    "dark": "Koyu",
+    "light": "Acik",
     "connectionStatus": "Baglanti Durumu",
     "connected": "Bagli",
     "disconnected": "Bagli Degil",
     "testConnection": "Baglantiyi Test Et",
-    "saved": "Ayarlar kaydedildi"
+    "saved": "Ayarlar kaydedildi",
+    "testing": "Test ediliyor..."
   },
   "platforms": {
     "instagram": "Instagram",
