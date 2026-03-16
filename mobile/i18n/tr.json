@@ -94,7 +94,8 @@
     "subtitle": "Platformlardaki trend hashtagleri kesfedin",
     "refresh": "Trendleri Yenile",
     "hashtagCloud": "Hashtag Bulutu",
-    "topHashtags": "En Populer Hashtagler"
+    "topHashtags": "En Populer Hashtagler",
+    "copyHashtag": "Kopyala"
   },
   "settings": {
     "title": "Ayarlar",

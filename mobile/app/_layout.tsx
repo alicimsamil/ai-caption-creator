@@ -45,7 +45,11 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: "#0F0A1A" },
           animation: "slide_from_right",
         }}
-      />
+      >
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="trending" />
+        <Stack.Screen name="generate/result" />
+      </Stack>
     </View>
   );
 }

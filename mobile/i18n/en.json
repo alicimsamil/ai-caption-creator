@@ -94,7 +94,8 @@
     "subtitle": "Discover trending hashtags across platforms",
     "refresh": "Refresh Trends",
     "hashtagCloud": "Hashtag Cloud",
-    "topHashtags": "Top Hashtags"
+    "topHashtags": "Top Hashtags",
+    "copyHashtag": "Copy"
   },
   "settings": {
     "title": "Settings",

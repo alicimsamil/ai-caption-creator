@@ -75,13 +75,27 @@ export default function SettingsPage() {
     setBrandSamples(brandSamples.filter((_, i) => i !== index));
   };
 
+  const [analyzingVoice, setAnalyzingVoice] = useState(false);
+
   const analyzeBrandVoice = async () => {
     const validSamples = brandSamples.filter((s) => s.trim());
     if (validSamples.length < 3) return;
-    // Would call API to analyze brand voice
-    setBrandAnalysis(
-      "Your brand voice is casual, witty, and uses short punchy sentences. You frequently use emojis and rhetorical questions."
-    );
+    setAnalyzingVoice(true);
+    try {
+      const res = await fetch("/api/generate/brand-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ samples: validSamples }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBrandAnalysis(data.summary || JSON.stringify(data, null, 2));
+      }
+    } catch {
+      setBrandAnalysis("Analysis failed. Please check your connection.");
+    } finally {
+      setAnalyzingVoice(false);
+    }
   };
 
   const addPillar = () => {
@@ -243,9 +257,13 @@ export default function SettingsPage() {
             <Button
               size="sm"
               onClick={analyzeBrandVoice}
-              disabled={brandSamples.filter((s) => s.trim()).length < 3}
+              disabled={brandSamples.filter((s) => s.trim()).length < 3 || analyzingVoice}
             >
-              <Brain className="h-3 w-3 mr-1" />
+              {analyzingVoice ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Brain className="h-3 w-3 mr-1" />
+              )}
               {t("analyzeSamples")}
             </Button>
           </div>
