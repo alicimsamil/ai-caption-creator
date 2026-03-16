@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Generation {
+  id            String    @id @default(cuid())
+  platform      String
+  tone          String
+  language      String
+  inputTopic    String
+  inputImageUrl String?
+  imageAnalysis String?
+  model         String
+  captions      Caption[]
+  hashtags      Hashtag[]
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([platform])
+}
+
+model Caption {
+  id           String     @id @default(cuid())
+  text         String
+  platform     String
+  charCount    Int
+  hasEmojis    Boolean    @default(false)
+  hasCta       Boolean    @default(false)
+  isFavorite   Boolean    @default(false)
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([isFavorite])
+  @@index([generationId])
+}
+
+model Hashtag {
+  id           String     @id @default(cuid())
+  tag          String
+  category     String
+  relevancy    Float
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([tag])
+  @@index([generationId])
+}
+
+model Template {
+  id             String   @id @default(cuid())
+  name           String
+  nameTr         String?
+  description    String
+  descriptionTr  String?
+  platform       String
+  tone           String
+  category       String
+  promptTemplate String
+  exampleOutput  String?
+  isBuiltIn      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([platform, category])
+}
+
+model AppSettings {
+  id              String @id @default("default")
+  defaultModel    String @default("llama3")
+  defaultLanguage String @default("tr")
+  defaultPlatform String @default("instagram")
+  defaultTone     String @default("casual")
+  ollamaBaseUrl   String @default("http://ollama:11434")
+  aiServiceUrl    String @default("http://ai-service:8000")
+}
+
+model CalendarEntry {
+  id        String   @id @default(cuid())
+  title     String
+  platform  String
+  caption   String?
+  hashtags  String?
+  date      DateTime
+  pillar    String?
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([platform])
+}
+
+model BrandVoice {
+  id          String   @id @default(cuid())
+  name        String
+  samples     String[]
+  analysis    String?
+  systemPrompt String?
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ContentPillar {
+  id    String @id @default(cuid())
+  name  String
+  color String @default("#8B5CF6")
+  count Int    @default(0)
+}
